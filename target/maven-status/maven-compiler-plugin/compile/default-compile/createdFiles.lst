@@ -1,9 +1,12 @@
-verarbeitung\Konto.class
+bank\KontoNichtExistiertException.class
+bank\Bank.class
 verarbeitung\GesperrtException.class
 verarbeitung\Girokonto.class
 verarbeitung\Sparbuch.class
 verarbeitung\Waehrung.class
-verarbeitung\Kontoart.class
 verarbeitung\Ueberweisungsfaehig.class
 verarbeitung\Kunde.class
+verarbeitung\Konto.class
+verarbeitung\Kontoart.class
+bank\UeberweisungException.class
 verarbeitung\Kunde$Zerstoerer.class

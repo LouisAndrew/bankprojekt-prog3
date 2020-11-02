@@ -14,8 +14,14 @@ public class Bank {
     /**
      * erstellt eine Bank mit der angegebenen Bankleitzahl
      * @param bankleitzahl long
+     * @throws IllegalArgumentException wenn die angegebene BLZ negativ
      */
     public Bank(long bankleitzahl) {
+
+        if (bankleitzahl < 0) {
+            throw new IllegalArgumentException("Bankleitzahl kann nicht negativ sein!");
+        }
+
         this.bankleitzahl = bankleitzahl;
         this.kontoliste = new TreeMap<>();
         this.letztVergebeneNummer = 0;
@@ -37,9 +43,9 @@ public class Bank {
 
         letztVergebeneNummer += 1; // Markiert die letzt vergebene Numemr -> ist die Kontonummer
         long kontoNummer = letztVergebeneNummer;
+        final double DEFAULT_DISPO = 20; // default dispo -> wie muss man mit Dispo eingehen? Muss man etwa eine default-dispo verfügen oder einfach die Dispo am Anfang auf 0 setzen?
 
-        // wie muss man mit der Dispo eingehen?
-        Konto k = new Girokonto(inhaber, kontoNummer, 0);
+        Konto k = new Girokonto(inhaber, kontoNummer, DEFAULT_DISPO);
 
         kontoliste.put(kontoNummer, k); // trägt das Konto in die Kontoliste ein
 
@@ -102,7 +108,7 @@ public class Bank {
      * @return true: wenn die Abhebung geklappt.
      * @throws KontoNichtExistiertException wenn die angegebene Kontonummer in der Kontoliste nicht enthalten ist.
      */
-    public boolean geldAbheben(long von, double betrag) throws KontoNichtExistiertException, GesperrtException {
+    public boolean geldAbheben(long von, double betrag) throws KontoNichtExistiertException {
         if (!kontoliste.containsKey(von)) {
             throw new KontoNichtExistiertException();
         }
@@ -200,7 +206,6 @@ public class Bank {
         Konto absender = kontoliste.get(vonKontonr);
         Konto empfaenger = kontoliste.get(nachKontonr);
         boolean abgesendet;
-        boolean empfaengt;
 
         // Absender ist Überweisungsunfähig
         if (!(absender instanceof  Ueberweisungsfaehig)) {
@@ -221,7 +226,7 @@ public class Bank {
         // erstmal versuchen, die Überweisung abzusenden
         try {
             abgesendet = ((Ueberweisungsfaehig) absender).ueberweisungAbsenden(betrag, empfaenger.getInhaber().getName(), empfaenger.getKontonummer(), this.bankleitzahl, verwendungszweck);
-        } catch (GesperrtException e) {
+        } catch (GesperrtException | IllegalArgumentException e) {
             return false;
         }
 
