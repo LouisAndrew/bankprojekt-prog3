@@ -214,28 +214,28 @@ public class BankTest {
      */
     @Test
     public void ueberweisungTest() throws KontoNichtExistiertException {
-        long giro = b.girokontoErstellen(kunde1); // überweisungsfähig
-        long sparbuch = b.sparbuchErstellen(kunde1); // überweisungsunfähig
+        long absender = b.girokontoErstellen(kunde1); // überweisungsfähig
+        long empfaenger = b.girokontoErstellen(new Kunde()); // überweisungsunfähig
 
-        boolean erfolgreich = b.geldUeberweisen(giro, sparbuch, 20, "Hello, World!");
+        boolean erfolgreich = b.geldUeberweisen(absender, empfaenger, 20, "Hello, World!");
         assertTrue(erfolgreich);
 
         // Testen die Überweisung, wenn der Betrag groesser als Dispo ist.
-        erfolgreich = b.geldUeberweisen(giro, sparbuch, 50, "Hello, World!");
+        erfolgreich = b.geldUeberweisen(absender, empfaenger, 50, "Hello, World!");
     }
 
     /**
      * Testen die Überweisung mit fehlerhaften Parametern.
      */
     public void ueberweisungFehlerhaftTest() throws KontoNichtExistiertException {
-        long giro = b.girokontoErstellen(kunde1); // überweisungsfähig
-        long sparbuch = b.sparbuchErstellen(kunde1); // überweisungsunfähig
+        long absender = b.girokontoErstellen(kunde1); // überweisungsfähig
+        long empfaenger = b.girokontoErstellen(new Kunde()); // überweisungsunfähig
 
-        boolean erfolgreich = b.geldUeberweisen(giro, sparbuch, -10, null);
+        boolean erfolgreich = b.geldUeberweisen(absender, empfaenger, -10, null);
         assertFalse(erfolgreich);
 
         try {
-            b.geldUeberweisen(12, sparbuch, 10, "");
+            b.geldUeberweisen(12, empfaenger, 10, "");
             fail();
         } catch (KontoNichtExistiertException e) {
             assertTrue(true);
@@ -246,32 +246,32 @@ public class BankTest {
      * Testen die Überweisung von Überweisungsunfähigem
      */
     public void ueberweisungVonUnfaehigTest() throws KontoNichtExistiertException {
-        long sparbuch1 = b.sparbuchErstellen(kunde1); // überweisungsunfähig
-        long sparbuch2 = b.sparbuchErstellen(new Kunde()); // auch unfaehig.
+        long sparbuch = b.sparbuchErstellen(kunde1); // überweisungsunfähig
+        long giro = b.girokontoErstellen(new Kunde()); // auch unfaehig.
 
-        boolean erfolgreich = b.geldUeberweisen(sparbuch1, sparbuch2, 5, "");
+        boolean erfolgreich = b.geldUeberweisen(sparbuch, giro, 5, "");
         assertFalse(erfolgreich);
     }
 
     /**
-     * Testen die Überweisung nach Überweisungsfähigem
+     * Testen die Überweisung nach Überweisungsunfähigem
      */
     public void ueberweisungNachFaehigTest() throws KontoNichtExistiertException {
-        long giro1 = b.girokontoErstellen(kunde1); // überweisungsfähig
-        long giro2 = b.girokontoErstellen(new Kunde()); // auch ueberweisungsfaehig
+        long giro = b.girokontoErstellen(kunde1); // überweisungsfähig
+        long sparbuch = b.sparbuchErstellen(new Kunde()); // auch ueberweisungsfaehig
 
-        boolean erfolgreich = b.geldUeberweisen(giro1, giro2, 5, "");
+        boolean erfolgreich = b.geldUeberweisen(giro, sparbuch, 5, "");
         assertFalse(erfolgreich);
     }
 
     /**
      * Testen die Überweisung von Überweisungsunfähigem nach Überweisungsfähigem
      */
-    public void ueberweisungVonUnfaehigNachFaehigTest() throws KontoNichtExistiertException {
-        long giro = b.girokontoErstellen(kunde1); // überweisungsfähig
-        long sparbuch = b.sparbuchErstellen(kunde1); // überweisungsunfähig
+    public void ueberweisungVonUnfaehigNachUnfaehigTest() throws KontoNichtExistiertException {
+        long sparbuch1 = b.sparbuchErstellen(kunde1); // überweisungsfähig
+        long sparbuch2 = b.sparbuchErstellen(new Kunde()); // überweisungsunfähig
 
-        boolean erfolgreich = b.geldUeberweisen(sparbuch, giro, 5, "");
+        boolean erfolgreich = b.geldUeberweisen(sparbuch1, sparbuch2, 5, "");
         assertFalse(erfolgreich);
     }
 }

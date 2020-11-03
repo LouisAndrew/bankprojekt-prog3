@@ -11,6 +11,10 @@ public class Bank {
 
     private Map<Long, Konto> kontoliste;
 
+    private final String msgAbsenderNichtExist = "Das Konto des Absenders existiert nicht";
+    private final String msgEmpfaengerNichtExist = "Das Konto des Empfängers existiert nicht";
+    private final String msgKontoNichtExist = "Das Konto existiert nicht";
+
     /**
      * erstellt eine Bank mit der angegebenen Bankleitzahl
      * @param bankleitzahl long
@@ -110,20 +114,16 @@ public class Bank {
      */
     public boolean geldAbheben(long von, double betrag) throws KontoNichtExistiertException {
         if (!kontoliste.containsKey(von)) {
-            throw new KontoNichtExistiertException();
+            throw new KontoNichtExistiertException(msgKontoNichtExist);
         }
 
         Konto k = kontoliste.get(von);
         try {
             return k.abheben(betrag);
-        } catch (GesperrtException e) {
+        } catch (GesperrtException | IllegalArgumentException e) {
             // wie kann man mit diesem Fehler umgehen?
-            System.out.println("Konto ist gesperrt.");
-        } catch (IllegalArgumentException e) {
-            System.out.println("Angegebener Betrag kann nicht negativ sein");
+            return false;
         }
-
-        return false;
     }
 
     /**
@@ -133,17 +133,13 @@ public class Bank {
      * @param betrag der zu einzahlende Betrag
      * @throws KontoNichtExistiertException wenn die angegebene Kontonummer in der Kontoliste nicht enthalten ist.
      */
-    public void geldEinzahlen(long auf, double betrag) throws KontoNichtExistiertException {
+    public void geldEinzahlen(long auf, double betrag) throws KontoNichtExistiertException, IllegalArgumentException {
         if (!kontoliste.containsKey(auf)) {
-            throw new KontoNichtExistiertException();
+            throw new KontoNichtExistiertException(msgKontoNichtExist);
         }
 
         Konto k = kontoliste.get(auf);
-        try {
-            k.einzahlen(betrag);
-        } catch (IllegalArgumentException e) {
-            System.out.println("Angegebene Betrag kann nicht negativ sein. \nEinzahlung ist nicht erfolgreich.");
-        }
+        k.einzahlen(betrag);
     }
 
     /**
@@ -170,7 +166,7 @@ public class Bank {
      */
     public double getKontostand(long nummer) throws KontoNichtExistiertException {
         if (!kontoliste.containsKey(nummer)) {
-            throw new KontoNichtExistiertException();
+            throw new KontoNichtExistiertException(msgKontoNichtExist);
         }
 
         Konto k = kontoliste.get(nummer);
@@ -193,13 +189,11 @@ public class Bank {
     public boolean geldUeberweisen(long vonKontonr, long nachKontonr, double betrag, String verwendungszweck) throws KontoNichtExistiertException {
 
         if (!kontoliste.containsKey(vonKontonr)) {
-            System.out.println("Überweisungabsender nicht existiert");
-            throw new KontoNichtExistiertException();
+            throw new KontoNichtExistiertException(msgAbsenderNichtExist);
         }
 
         if (!kontoliste.containsKey(nachKontonr)) {
-            System.out.println("Überweisungempfänger nicht existiert");
-            throw new KontoNichtExistiertException();
+            throw new KontoNichtExistiertException(msgEmpfaengerNichtExist);
         }
 
         // Überweisung zum überweisungsfähigen Konto!
@@ -207,14 +201,8 @@ public class Bank {
         Konto empfaenger = kontoliste.get(nachKontonr);
         boolean abgesendet;
 
-        // Absender ist Überweisungsunfähig
-        if (!(absender instanceof  Ueberweisungsfaehig)) {
-            System.err.println("Absender ist Überweisungsunfähig!");
-            return false;
-        }
-
-        if (empfaenger instanceof  Ueberweisungsfaehig) {
-            System.err.println("Empfänger ist Überweisungsfähig!");
+        // Die beiden Konten müssen überweisungsfähig sein.
+        if (!(empfaenger instanceof Girokonto )|| !(absender instanceof Girokonto)) {
             return false;
         }
 
@@ -230,14 +218,18 @@ public class Bank {
             return false;
         }
 
-
+        // Empfaenger sollte hier die Ueberweisung empfangen.
         if (abgesendet) {
-            // Empfänger sollte hier Geld empfangen.
-            geldEinzahlen(empfaenger.getKontonummer(), betrag); // Kontonummer des Empfängers sollte existiert.
-
-            return true;
+            try {
+                ((Ueberweisungsfaehig) empfaenger).ueberweisungEmpfangen(betrag, absender.getInhaber().getName(), absender.getKontonummer(), this.bankleitzahl, verwendungszweck);
+                return true;
+            } catch (IllegalArgumentException e) {
+                // wenn das Empfaengen der Ueberweisung nicht geklappt, zahle den Betrag ins Konto des Absenders wieder ein.
+                geldEinzahlen(absender.getKontonummer(), betrag);
+                return false;
+            }
         } else {
-            // wenn abgesendet false ist, heißt es, dass die Überweisung nicht erfolgreich ist. Dann, Empfänger sollte kein Geld empfangen.
+            // wenn die Ueberweisung nicht geklappt hat, return false.
             return false;
         }
     }
