@@ -1,13 +1,10 @@
 package bank;
 
 import org.junit.jupiter.api.Test;
-import verarbeitung.Girokonto;
-import verarbeitung.Konto;
 import verarbeitung.Kunde;
-import verarbeitung.Sparbuch;
 
 import java.time.LocalDate;
-import java.util.TreeMap;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -26,7 +23,7 @@ public class BankTest {
         try {
             Bank bf = new Bank(-1);
         } catch (IllegalArgumentException e) {
-            assertTrue(true);
+            // leer
         }
     }
 
@@ -34,9 +31,11 @@ public class BankTest {
      * Testen das Anlegen eines Girokontos UND die zurückgegebene Kontonummer.
      */
     @Test
-    public void girokontoErstellenTest() {
+    public void girokontoErstellenTest() throws KontoNichtExistiertException {
         long nummer = b.girokontoErstellen(kunde1);
-        assertEquals(nummer, 1);
+        List<Long> konten = b.getAlleKontonummern();
+
+        assertTrue(konten.contains(nummer));
     }
 
     /**
@@ -48,7 +47,7 @@ public class BankTest {
             b.girokontoErstellen(null);
             fail();
         } catch (IllegalArgumentException e) {
-            assertTrue(true);
+            // leer
         }
     }
 
@@ -56,9 +55,11 @@ public class BankTest {
      * Testen das Anlegen eines Sparbuchs UND die zurückgegebene Kontonummer
      */
     @Test
-    public void sparbuchErstellenTest() {
+    public void sparbuchErstellenTest() throws KontoNichtExistiertException {
         long nummer = b.sparbuchErstellen(kunde1);
-        assertEquals(nummer, 1);
+        List<Long> konten = b.getAlleKontonummern();
+
+        assertTrue(konten.contains(nummer));
     }
 
     /**
@@ -70,42 +71,31 @@ public class BankTest {
             b.sparbuchErstellen(null);
             fail();
         } catch (IllegalArgumentException e) {
-            assertTrue(true);
+            // leer
         }
-    }
-
-    /**
-     * Testen die zurückgegebene Kontonummern, wenn einige Konten angelegt werden
-     */
-    @Test
-    public void gegebeneKontonummerTest() {
-        long nummer1 = b.girokontoErstellen(kunde1);
-        long nummer2 = b.sparbuchErstellen(kunde1);
-        long nummer3 = b.girokontoErstellen(new Kunde());
-
-        assertEquals(nummer1, 1);
-        assertEquals(nummer2, 2);
-        assertEquals(nummer3, 3);
     }
 
     /**
      * Testen die Geldabhebung eines Kontos
      */
     @Test
-    public void geldAbhebenTest() {
+    public void geldAbhebenTest() throws KontoNichtExistiertException {
         long nummer = b.girokontoErstellen(kunde1);
 
-        try {
+        double kontostand = b.getKontostand(nummer);
+        double betrag = 20;
 
-            // max Abhebung = 20EUR.
-            boolean erfolgreich = b.geldAbheben(nummer, 20);
-            assertTrue(erfolgreich);
+        // max Abhebung = 20EUR.
+        boolean erfolgreich = b.geldAbheben(nummer, betrag);
+        assertTrue(erfolgreich);
 
-            erfolgreich = b.geldAbheben(nummer, 50); // Groesser als Dispo
-            assertFalse(erfolgreich);
-        } catch (Exception e) {
-            fail();
-        }
+        double kontostandAktuell = b.getKontostand(nummer);
+
+        assertEquals(kontostandAktuell, kontostand - 20);
+
+        erfolgreich = b.geldAbheben(nummer, 50); // Groesser als Dispo
+        assertFalse(erfolgreich);
+        assertEquals(kontostandAktuell, b.getKontostand(nummer));
     }
 
     /**
@@ -117,7 +107,7 @@ public class BankTest {
             b.geldAbheben(1, 20); // Konto mit der Nr. 1 ecistiert nicht.
             fail();
         } catch (KontoNichtExistiertException e) {
-            assertTrue(true);
+            // leer
         }
     }
 
@@ -150,7 +140,7 @@ public class BankTest {
             b.geldEinzahlen(2, 20);
             fail();
         } catch (KontoNichtExistiertException e) {
-            assertTrue(true);
+            // leer
         }
     }
 
@@ -162,15 +152,10 @@ public class BankTest {
         long nummer = b.girokontoErstellen(kunde1);
         boolean erfolgreich = b.kontoLoeschen(nummer);
 
-        try {
-            assertTrue(erfolgreich);
+       assertTrue(erfolgreich);
 
-            // versucht mal Geld aus diesem Konto abzuheben (wenn die Abhebung nicht geklappt, das Löschen ist erfolgreich)
-            b.geldEinzahlen(nummer, 20);
-            fail();
-        } catch (KontoNichtExistiertException e) {
-            assertTrue(true);
-        }
+       List<Long> konten = b.getAlleKontonummern();
+       assertFalse(konten.contains(nummer));
     }
 
     /**
@@ -205,7 +190,7 @@ public class BankTest {
             b.getKontostand(1);
             fail();
         } catch (KontoNichtExistiertException e) {
-            assertTrue(true);
+            // leer
         }
     }
 
@@ -217,11 +202,25 @@ public class BankTest {
         long absender = b.girokontoErstellen(kunde1); // überweisungsfähig
         long empfaenger = b.girokontoErstellen(new Kunde()); // überweisungsunfähig
 
-        boolean erfolgreich = b.geldUeberweisen(absender, empfaenger, 20, "Hello, World!");
+        double betrag = 20;
+        double absenderKontostand = b.getKontostand(absender);
+        double empfaengerKontostand = b.getKontostand(empfaenger);
+
+        boolean erfolgreich = b.geldUeberweisen(absender, empfaenger, betrag, "Hello, World!");
         assertTrue(erfolgreich);
+
+        double absenderKontostandAktuell = b.getKontostand(absender);
+        double empfaengerKontostandAktuell = b.getKontostand(empfaenger);
+
+        assertEquals(absenderKontostandAktuell, absenderKontostand - betrag);
+        assertEquals(empfaengerKontostandAktuell, empfaengerKontostand + betrag);
 
         // Testen die Überweisung, wenn der Betrag groesser als Dispo ist.
         erfolgreich = b.geldUeberweisen(absender, empfaenger, 50, "Hello, World!");
+        assertFalse(erfolgreich);
+
+        assertEquals(absenderKontostandAktuell, b.getKontostand(absender));
+        assertEquals(empfaengerKontostandAktuell, b.getKontostand(empfaenger));
     }
 
     /**
@@ -231,15 +230,14 @@ public class BankTest {
         long absender = b.girokontoErstellen(kunde1); // überweisungsfähig
         long empfaenger = b.girokontoErstellen(new Kunde()); // überweisungsunfähig
 
+        double absenderKontostand = b.getKontostand(absender);
+        double empfaengerKontostand = b.getKontostand(empfaenger);
+
         boolean erfolgreich = b.geldUeberweisen(absender, empfaenger, -10, null);
         assertFalse(erfolgreich);
 
-        try {
-            b.geldUeberweisen(12, empfaenger, 10, "");
-            fail();
-        } catch (KontoNichtExistiertException e) {
-            assertTrue(true);
-        }
+        assertEquals(absenderKontostand, b.getKontostand(absender));
+        assertEquals(empfaengerKontostand, b.getKontostand(empfaenger));
     }
 
     /**
@@ -249,8 +247,14 @@ public class BankTest {
         long sparbuch = b.sparbuchErstellen(kunde1); // überweisungsunfähig
         long giro = b.girokontoErstellen(new Kunde()); // auch unfaehig.
 
+        double absenderKontostand = b.getKontostand(sparbuch);
+        double empfaengerKontostand = b.getKontostand(giro);
+
         boolean erfolgreich = b.geldUeberweisen(sparbuch, giro, 5, "");
         assertFalse(erfolgreich);
+
+        assertEquals(absenderKontostand, b.getKontostand(sparbuch));
+        assertEquals(empfaengerKontostand, b.getKontostand(giro));
     }
 
     /**
@@ -260,8 +264,14 @@ public class BankTest {
         long giro = b.girokontoErstellen(kunde1); // überweisungsfähig
         long sparbuch = b.sparbuchErstellen(new Kunde()); // auch ueberweisungsfaehig
 
+        double absenderKontostand = b.getKontostand(giro);
+        double empfaengerKontostand = b.getKontostand(sparbuch);
+
         boolean erfolgreich = b.geldUeberweisen(giro, sparbuch, 5, "");
         assertFalse(erfolgreich);
+
+        assertEquals(absenderKontostand, b.getKontostand(giro));
+        assertEquals(empfaengerKontostand, b.getKontostand(sparbuch));
     }
 
     /**
@@ -271,7 +281,13 @@ public class BankTest {
         long sparbuch1 = b.sparbuchErstellen(kunde1); // überweisungsfähig
         long sparbuch2 = b.sparbuchErstellen(new Kunde()); // überweisungsunfähig
 
+        double absenderKontostand = b.getKontostand(sparbuch1);
+        double empfaengerKontostand = b.getKontostand(sparbuch2);
+
         boolean erfolgreich = b.geldUeberweisen(sparbuch1, sparbuch2, 5, "");
         assertFalse(erfolgreich);
+
+        assertEquals(absenderKontostand, b.getKontostand(sparbuch1));
+        assertEquals(empfaengerKontostand, b.getKontostand(sparbuch2));
     }
 }
