@@ -1,5 +1,9 @@
 package verarbeitung;
 
+import javafx.beans.property.SimpleStringProperty;
+import javafx.beans.property.StringProperty;
+
+import java.io.Serializable;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -13,7 +17,7 @@ import java.util.Locale;
  * @author Dorothea Hubrich
  * @version 1.0
  */
-public class Kunde implements Comparable<Kunde>{
+public class Kunde implements Comparable<Kunde>, Serializable {
 
 	/**
 	 * Ein Musterkunde
@@ -41,14 +45,24 @@ public class Kunde implements Comparable<Kunde>{
 	 * Der Nachname
 	 */
 	private String nachname;
-	/**
-	 * Die Adresse
-	 */
-	private String adresse;
+
 	/**
 	 * Geburtstag
 	 */
 	private LocalDate geburtstag;
+
+	/**
+	 * die Adresse
+	 */
+	SimpleStringProperty adresse;
+
+	/**
+	 * Gibt die Adresse des Kundens als ein Property zurueck
+	 * @return StringProperty
+	 */
+	public StringProperty getAdresseProperty() {
+		return adresse;
+	}
 
 	/**
 	 * erzeugt einen Standardkunden
@@ -71,8 +85,8 @@ public class Kunde implements Comparable<Kunde>{
 			throw new IllegalArgumentException("null als Parameter nich erlaubt");
 		this.vorname = vorname;
 		this.nachname = nachname;
-		this.adresse = adresse;
 		this.geburtstag = gebdat;
+		this.adresse = new SimpleStringProperty(adresse);
 		
 		Runnable runnableObjekt = new Zerstoerer();
 		Thread t = new Thread(runnableObjekt);
@@ -135,7 +149,7 @@ public class Kunde implements Comparable<Kunde>{
 	 * @return Adresse des Kunden
 	 */
 	public String getAdresse() {
-		return adresse;
+		return adresse.getValue();
 	}
 
 	/**
@@ -147,7 +161,7 @@ public class Kunde implements Comparable<Kunde>{
 	public void setAdresse(String adresse) {
 		if(adresse == null)
 			throw new IllegalArgumentException("Adresse darf nicht null sein");
-		this.adresse = adresse;
+		this.adresse.set(adresse);
 	}
 
 	/**

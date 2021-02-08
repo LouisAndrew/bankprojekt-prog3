@@ -63,21 +63,10 @@ public class Sparbuch extends Konto {
     	String ausgabe = "-- SPARBUCH --" + System.lineSeparator() +
     	super.toString()
     	+ "Zinssatz: " + this.zinssatz * 100 +"%" + System.lineSeparator();
-    	return ausgabe;
-	}
+    	return ausgabe;}
 
 	@Override
-	public boolean abheben (double betrag) throws GesperrtException{
-		if (betrag < 0 || Double.isNaN(betrag)) {
-			throw new IllegalArgumentException("Betrag ungültig");
-		}
-
-		if(this.isGesperrt())
-		{
-			GesperrtException e = new GesperrtException(this.getKontonummer());
-			throw e;
-		}
-
+	protected boolean istAbhebungErlaubt(double betrag) {
 		LocalDate heute = LocalDate.now();
 		if(heute.getMonth() != zeitpunkt.getMonth() || heute.getYear() != zeitpunkt.getYear())
 		{
@@ -86,19 +75,14 @@ public class Sparbuch extends Konto {
 
 		Waehrung waehrung = getWaehrung();
 
-		// Aktuellste Abhebesumme (an die Währung angepasst)
 		double abhebeSummeAktuell = waehrung == Waehrung.EUR ? ABHEBESUMME : waehrung.euroInWaehrungUmrechnen(ABHEBESUMME);
+		return getKontostand() - betrag >= 0.50 && bereitsAbgehoben + betrag <= abhebeSummeAktuell;
+	}
 
-		if (getKontostand() - betrag >= 0.50 && 
-				 bereitsAbgehoben + betrag <= abhebeSummeAktuell)
-		{
-			setKontostand(getKontostand() - betrag);
-			bereitsAbgehoben += betrag;
-			this.zeitpunkt = LocalDate.now();
-			return true;
-		}
-		else
-			return false;
+	@Override
+	protected void sideEffect(double betrag) {
+		bereitsAbgehoben += betrag;
+		this.zeitpunkt = LocalDate.now();
 	}
 
 	/**

@@ -1,10 +1,18 @@
 package bank;
 
+import fabriken.Kontofabrik;
+import util.Logger;
 import verarbeitung.*;
 
+import java.io.*;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
-public class Bank {
+public class Bank implements Serializable, Cloneable {
+
+    private static final long serialVersionUID = 1L; // Aus Musterloesung.
 
     private final long bankleitzahl;
     private long letztVergebeneNummer;
@@ -17,6 +25,7 @@ public class Bank {
 
     /**
      * erstellt eine Bank mit der angegebenen Bankleitzahl
+     *
      * @param bankleitzahl long
      * @throws IllegalArgumentException wenn die angegebene BLZ negativ
      */
@@ -32,50 +41,24 @@ public class Bank {
     }
 
     /**
-     * erstellt ein Girokonto für den angegebenen Kunden. Dabei soll die Methode eine
-     * neue, noch nicht vergebene Kontonummer erzeugen, das neue Girokonto mit dieser
-     * Nummer in der Kontenliste speichern und die vergebene Kontonummer zurückgeben.
-     *
-     * @param inhaber Kunde: aus der verarbeitung Paket.
-     * @return long: Kontonummer
-     * @throws IllegalArgumentException wenn der angegebene Inhaber null ist.
+     * Methode zur Erstellung eines Kontos. Sowohl Girokonto als auch Sparbuch wird beim Aufruf dieser Methode erstellt.
+     * @param fabrik Abstract-Factory-Muster zur Erstellung eines Kontos.
+     * @param inhaber Inhaber des Kontos
+     * @return die Kontonummer.
      */
-    public long girokontoErstellen(Kunde inhaber) {
-        if (inhaber == null) {
-            throw new IllegalArgumentException();
-        }
-
-        letztVergebeneNummer += 1; // Markiert die letzt vergebene Numemr -> ist die Kontonummer
-        long kontoNummer = letztVergebeneNummer;
-        final double DEFAULT_DISPO = 20; // default dispo -> wie muss man mit Dispo eingehen? Muss man etwa eine default-dispo verfügen oder einfach die Dispo am Anfang auf 0 setzen?
-
-        Konto k = new Girokonto(inhaber, kontoNummer, DEFAULT_DISPO);
-
-        kontoliste.put(kontoNummer, k); // trägt das Konto in die Kontoliste ein
-
-        return kontoNummer;
-    }
-
-    /**
-     * erstellt ein Sparbuch für den angegebenen Kunden. Dabei soll die Methode eine
-     * neue, noch nicht vergebene Kontonummer erzeugen, das neue Sparbuch mit dieser
-     * Nummer in der Kontenliste speichern und die vergebene Kontonummer zurückgeben.
-     *
-     * @param inhaber Kunde: aus der verarbeitung Paket.jac
-     * @return long: Kontonummer
-     * @throws IllegalArgumentException wenn der angegebene Inhaber null ist.
-     */
-    public long sparbuchErstellen(Kunde inhaber) {
-        if (inhaber == null) {
+    public long kontoErstellen(Kontofabrik fabrik, Kunde inhaber) {
+        if (inhaber == null || fabrik == null) {
             throw new IllegalArgumentException();
         }
 
         letztVergebeneNummer += 1; // Markiert die letzt vergebene Numemr -> ist die Kontonummer
         long kontoNummer = letztVergebeneNummer;
 
-        Konto k = new Sparbuch(inhaber, kontoNummer);
+        Konto k = fabrik.erstellen(inhaber, kontoNummer); // Ein Konto aus der Fabrik erstellen
 
-        kontoliste.put(kontoNummer, k);
+        kontoliste.put(kontoNummer, k); // Dann setze das Konto in die Kontoliste
+
+        // Wenn ein Konto von der Bank erstellt wird, wird dann automatisch die Observern angemeldet.
 
         return kontoNummer;
     }
@@ -88,7 +71,7 @@ public class Bank {
     public String getAlleKonten() {
         String alleKonten = "";
 
-        for (Konto k: kontoliste.values()) {
+        for (Konto k : kontoliste.values()) {
             alleKonten = "Kontonummer: " + k.getKontonummer() + ". Kontostand: " + k.getKontostandFormatiert() + "\n";
         }
 
@@ -107,7 +90,7 @@ public class Bank {
     /**
      * hebt den Betrag vom Konto mit der Nummer von ab und gibt zurück, ob die Abhebung geklappt hat.
      *
-     * @param von Nummer des Kontos, wovon der Betrag abgehoben wird
+     * @param von    Nummer des Kontos, wovon der Betrag abgehoben wird
      * @param betrag der zu abhebende Betrag
      * @return true: wenn die Abhebung geklappt.
      * @throws KontoNichtExistiertException wenn die angegebene Kontonummer in der Kontoliste nicht enthalten ist.
@@ -122,6 +105,7 @@ public class Bank {
             return k.abheben(betrag);
         } catch (GesperrtException | IllegalArgumentException e) {
             // wie kann man mit diesem Fehler umgehen?
+            Logger.logFehler("Konto " + von + " ist gesperrt und möchte eine Abhebung durchfüren");
             return false;
         }
     }
@@ -129,7 +113,7 @@ public class Bank {
     /**
      * zahlt den angegebenen Betrag auf das Konto mit der Nummer auf ein
      *
-     * @param auf Nummer des Kontos, worauf der Betrag eingezahlt wird.
+     * @param auf    Nummer des Kontos, worauf der Betrag eingezahlt wird.
      * @param betrag der zu einzahlende Betrag
      * @throws KontoNichtExistiertException wenn die angegebene Kontonummer in der Kontoliste nicht enthalten ist.
      */
@@ -179,9 +163,9 @@ public class Bank {
      * Überweisung geklappt hat (nur bankinterne Überweisungen!) Überlegen Sie gut, was
      * dabei alles schief gehen kann, so dass Sie false zurückliefern müssen!
      *
-     * @param vonKontonr Nummer des Kontos, das die Überweisung absendet
-     * @param nachKontonr Nummer des Kontos, das die Überweisung empfängt
-     * @param betrag der zu überweisende Betrag
+     * @param vonKontonr       Nummer des Kontos, das die Überweisung absendet
+     * @param nachKontonr      Nummer des Kontos, das die Überweisung empfängt
+     * @param betrag           der zu überweisende Betrag
      * @param verwendungszweck Verwendungszweck der Überweisung
      * @return true, wenn die Überweisung geklappt hat
      * @throws KontoNichtExistiertException wenn die angegebene Kontonummer in der Kontoliste nicht enthalten ist.
@@ -202,7 +186,7 @@ public class Bank {
         boolean abgesendet;
 
         // Die beiden Konten müssen überweisungsfähig sein.
-        if (!(empfaenger instanceof Girokonto )|| !(absender instanceof Girokonto)) {
+        if (!(empfaenger instanceof Ueberweisungsfaehig) || !(absender instanceof Ueberweisungsfaehig)) {
             return false;
         }
 
@@ -215,6 +199,7 @@ public class Bank {
         try {
             abgesendet = ((Ueberweisungsfaehig) absender).ueberweisungAbsenden(betrag, empfaenger.getInhaber().getName(), empfaenger.getKontonummer(), this.bankleitzahl, verwendungszweck);
         } catch (GesperrtException | IllegalArgumentException e) {
+            Logger.logFehler("Konto " + vonKontonr + " ist gesperrt + ueberweisung ");
             return false;
         }
 
@@ -226,6 +211,7 @@ public class Bank {
             } catch (IllegalArgumentException e) {
                 // wenn das Empfaengen der Ueberweisung nicht geklappt, zahle den Betrag ins Konto des Absenders wieder ein.
                 geldEinzahlen(absender.getKontonummer(), betrag);
+                Logger.logFehler("Absender " + nachKontonr + " ist gesperrt. Geld in Hoehe von " + betrag + " ist zurueck zu " + vonKontonr);
                 return false;
             }
         } else {
@@ -241,5 +227,106 @@ public class Bank {
      */
     public long getBankleitzahl() {
         return bankleitzahl;
+    }
+
+    /**
+     * die Methode sperrt alle Konten, deren Kontostand im Minus ist.
+     */
+    public void pleitegeierSperren() {
+        Stream<Konto> kontenStream = kontoliste.values().stream();
+        kontenStream.forEach(konto -> {
+            // prueft ob der aktuelle Kontostand negativ ist
+            if (konto.getKontostand() < 0) {
+                konto.sperren(); // sperrt das Konto wenn der Kontostand negativ ist.
+            }
+        });
+    }
+
+    /**
+     * Die Methode liefert eine Liste aller Kunden, die auf einem Konto einen Kontostand haben, der mindestens minimum beträgt.
+     *
+     * @param minimum Minimumbetrag.
+     * @return Liste aller Kunden, den Kontostand hoeher als Minimum hat.
+     */
+    public List<Kunde> getKundenMitVollemKonto(double minimum) {
+        Stream<Konto> kontenStream = kontoliste.values().stream();
+        return kontenStream
+                .filter(konto -> konto.getKontostand() >= minimum) // den Stream filtern, dass nur Konten mit Kontostand gleicher gleich den minimum Betrag in den Stream beinhaltet wird
+                .map(konto -> konto.getInhaber()) // nimmt den Ihaber aller Konten im Stream heraus
+                .collect(Collectors.toList()); // den Strem in Liste umwandeln
+    }
+
+    /**
+     * liefert die Namen und Geburtstage aller Kunden der Bank. Doppelte Namen sollen dabei aussortiert werden. Sortieren Sie die Liste nach dem Geburtsdatum.
+     *
+     * @return Namen und geburtstage aller Kunden.
+     */
+    public String getKundengeburtstage() {
+
+        Stream<Kunde> kontenStream = kontoliste
+                .values()
+                .stream()
+                .map(konto -> konto.getInhaber()) // nimmt Ihaber aller Konten heraus
+                .distinct() // doppelte namen aussortieren
+                .sorted((kunde1, kunde2) -> kunde1.getName().compareTo(kunde2.getName())); // sortiert die inhaltee des streams
+
+        StringBuilder builder = new StringBuilder();
+
+        kontenStream.forEach(kunde -> {
+            String str = "Name: " + kunde.getName() + " " + kunde.getNachname() + ". Geburtstag: " + kunde.getGeburtstag().toString() + System.lineSeparator();
+
+            builder.append(str);
+        });
+
+        return builder.toString();
+    }
+
+    /**
+     * liefert eine Liste aller freien Kontonummern, die im von Ihnen vergebenen Bereich
+     * liegen (sicher gibt es in Ihrem Programm eine Untergrenze für Kontonummern
+     * und eine derzeitige Obergrenze; es geht um die Kontonummern, die dazwischen
+     * liegen und für die es gerade kein Konto gibt, z.B. weil es gelöscht wurde.)
+     *
+     * @return Liste der Kontonummern, die in Lueceken stehen
+     */
+    public List<Long> getKontonummernLuecken() {
+        if (kontoliste.size() == 0) {
+            return new ArrayList<>();
+        }
+
+        return LongStream
+                .rangeClosed(1, letztVergebeneNummer) // Erstmal eine Longstream im Intervall 1 bis letzt vergebener Nummer erzeugen
+                .boxed() // Dann diesen Longstream in einen Stream<Long> umwandeln
+                .filter(kontonummer -> !kontoliste.containsKey(kontonummer)) // den Stream filtern, dass nur kontonummern, die keinem Konto zugeordnet ist, beeihaltet werden
+                .collect(Collectors.toList()); // den Stream in eine Liste umwandeln
+    }
+
+    /**
+     * Liefert eine vollstaendige Kopie von this zurueck.
+     *
+     * @return vollstaendige Kopie von this
+     */
+    public Bank clone() throws CloneNotSupportedException {
+        byte[] arr;
+        try (
+                ByteArrayOutputStream baout = new ByteArrayOutputStream();
+                ObjectOutputStream oo = new ObjectOutputStream(baout);
+                ) {
+            oo.writeObject(this);
+            arr = baout.toByteArray();
+        } catch (NotSerializableException e) {
+            throw new CloneNotSupportedException();
+        } catch (IOException e) {
+            return null;
+        }
+
+        try (
+                ByteArrayInputStream bain = new ByteArrayInputStream(arr);
+                ObjectInputStream oi = new ObjectInputStream(bain);
+        ) {
+            return (Bank) oi.readObject();
+        } catch (IOException | ClassNotFoundException e) {
+            return null;
+        }
     }
 }

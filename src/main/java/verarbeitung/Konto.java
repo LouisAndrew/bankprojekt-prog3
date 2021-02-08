@@ -1,9 +1,21 @@
 package verarbeitung;
 
+import javafx.beans.property.*;
+import verarbeitung.beobachter.InhaberBeobachter;
+import verarbeitung.beobachter.IsGesperrtBeobachter;
+import verarbeitung.beobachter.KontostandBeobachter;
+import verarbeitung.beobachter.WaehrungBeobachter;
+
+import java.beans.PropertyChangeListener;
+import java.beans.PropertyChangeSupport;
+import java.io.Serializable;
+import java.util.LinkedList;
+import java.util.List;
+
 /**
  * stellt ein allgemeines Konto dar
  */
-public abstract class Konto implements Comparable<Konto>
+public abstract class Konto implements Comparable<Konto>, Serializable
 {
 	/** 
 	 * der Kontoinhaber
@@ -15,26 +27,78 @@ public abstract class Konto implements Comparable<Konto>
 	 */
 	private final long nummer;
 
+	private Waehrung waehrung = Waehrung.EUR;
+
+	/**
+	 * Observer-Support dieses Objekts
+	 */
+	private transient PropertyChangeSupport prop = new PropertyChangeSupport(this);
+
 	/**
 	 * der aktuelle Kontostand
 	 */
-	private double kontostand;
+	private ReadOnlyDoubleWrapper kontostand;
 
-	private Waehrung waehrung = Waehrung.EUR;
+	/**
+	 * Wenn das Konto gesperrt ist (gesperrt = true), können keine Aktionen daran mehr vorgenommen werden,
+	 * die zum Schaden des Kontoinhabers wären (abheben, Inhaberwechsel)
+	 */
+	private BooleanProperty gesperrt;
+	private ReadOnlyBooleanWrapper istKontostandNegativ;
+
+	/**
+	 * Set-Methode der PropertyChangeSupport. Wird hauptsaechlich zum Testen benutzt.
+	 * @param prop PropertyChangeSupport.
+	 */
+	void setProp(PropertyChangeSupport prop) { this.prop = prop; }
+
+	/**
+	 * Gibt den Kontostand des Kontos als eine ReadOnlyDoubleProperty zurueck
+	 * @return Nicht veraenderbare Kontostand als ein Property
+	 */
+	public ReadOnlyDoubleProperty kontostandProperty() {
+		return kontostand.getReadOnlyProperty();
+	}
+
+	/**
+	 * Gibt zurueck, ob das Konto gesperrt ist, als ein Property
+	 * @return BooleanProperty
+	 */
+	public BooleanProperty gesperrtProperty() {
+		return gesperrt;
+	}
+
+	/**
+	 * Gibt zurueck, ob auf der Oberflaeche die Plus / Minus Icon angezeigt werden soll
+	 * @return -, wenn minus angezeigt werden soll
+	 */
+	public ReadOnlyBooleanProperty istKontostandNegativProperty() {
+		return istKontostandNegativ.getReadOnlyProperty();
+	}
+
+	/**
+	 * Default Aufbau der Beobachter fuer die Klasse Konto..
+	 */
+	public void setupProp() {
+		List<PropertyChangeListener> liste = new LinkedList<>();
+
+		liste.add(new IsGesperrtBeobachter());
+		liste.add(new KontostandBeobachter());
+		liste.add(new WaehrungBeobachter());
+		liste.add(new InhaberBeobachter());
+
+		anmelden(liste);
+	}
 
 	/**
 	 * setzt den aktuellen Kontostand
 	 * @param kontostand neuer Kontostand
 	 */
 	protected void setKontostand(double kontostand) {
-		this.kontostand = kontostand;
+		prop.firePropertyChange("Kontostand", this.kontostand, kontostand);
+		this.kontostand.set(kontostand);
+		this.istKontostandNegativ.set(kontostand < 0);
 	}
-
-	/**
-	 * Wenn das Konto gesperrt ist (gesperrt = true), können keine Aktionen daran mehr vorgenommen werden,
-	 * die zum Schaden des Kontoinhabers wären (abheben, Inhaberwechsel)
-	 */
-	private boolean gesperrt;
 
 	/**
 	 * Setzt die beiden Eigenschaften kontoinhaber und kontonummer auf die angegebenen Werte,
@@ -51,8 +115,12 @@ public abstract class Konto implements Comparable<Konto>
 			throw new IllegalArgumentException("Inhaber darf nicht null sein!");
 		this.inhaber = inhaber;
 		this.nummer = kontonummer;
-		this.kontostand = 0;
-		this.gesperrt = false;
+
+		kontostand = new ReadOnlyDoubleWrapper(0);
+		gesperrt = new SimpleBooleanProperty(false);
+		istKontostandNegativ = new ReadOnlyBooleanWrapper(false);
+
+		setupProp();
 	}
 
 	/**
@@ -68,7 +136,7 @@ public abstract class Konto implements Comparable<Konto>
 		this(inhaber, kontonummer);
 		this.waehrung = waehrung;
 	}
-	
+
 	/**
 	 * setzt alle Eigenschaften des Kontos auf Standardwerte
 	 */
@@ -77,10 +145,34 @@ public abstract class Konto implements Comparable<Konto>
 	}
 
 	/**
+	 * Meldet einen ChangeListener an
+	 * @param listener ChangeListener
+	 */
+	public void anmelden(PropertyChangeListener listener) {
+		prop.addPropertyChangeListener(listener);
+	}
+
+	/**
+	 * Meldet eine Liste von ChangeListeners an
+	 * @param listenerList Liste von ChangeListener.
+	 */
+	public void anmelden(List<PropertyChangeListener> listenerList) {
+		listenerList.forEach(listener -> { prop.addPropertyChangeListener(listener); });
+	}
+
+	/**
+	 * Meldet einen ChangeListener ab
+	 * @param listener ChangeListener.
+	 */
+	public void abmelden(PropertyChangeListener listener) {
+		prop.removePropertyChangeListener(listener);
+	}
+
+	/**
 	 * liefert den Kontoinhaber zurück
 	 * @return   der Inhaber
 	 */
-	public final Kunde getInhaber() {
+	public Kunde getInhaber() {
 		return this.inhaber;
 	}
 
@@ -99,6 +191,7 @@ public abstract class Konto implements Comparable<Konto>
 	 * protected => nur für Unterklasse Zugriff erlaubt.
 	 */
 	public void setWaehrung(Waehrung waehrung) {
+		prop.firePropertyChange("Waehrung", this.waehrung, waehrung);
 		this.waehrung = waehrung;
 	}
 	
@@ -108,11 +201,13 @@ public abstract class Konto implements Comparable<Konto>
 	 * @throws GesperrtException wenn das Konto gesperrt ist
 	 * @throws IllegalArgumentException wenn kinh null ist
 	 */
-	public final void setInhaber(Kunde kinh) throws GesperrtException{
+	public void setInhaber(Kunde kinh) throws GesperrtException{
 		if (kinh == null)
 			throw new IllegalArgumentException("Der Inhaber darf nicht null sein!");
-		if(this.gesperrt)
-			throw new GesperrtException(this.nummer);        
+		if(isGesperrt())
+			throw new GesperrtException(this.nummer);
+
+		prop.firePropertyChange("Inhaber", this.inhaber, kinh);
 		this.inhaber = kinh;
 
 	}
@@ -130,23 +225,23 @@ public abstract class Konto implements Comparable<Konto>
 	 */
 	public void waehrungswechsel(Waehrung neu) {
 		Waehrung temp = this.waehrung;
-		this.waehrung = neu;
-		this.kontostand = this.waehrung.rechneBetragAndererWaehrung(this.kontostand, temp);
+		setWaehrung(neu);
+		setKontostand(this.waehrung.rechneBetragAndererWaehrung(getKontostand(), temp));
 	}
 	
 	/**
 	 * liefert den aktuellen Kontostand
 	 * @return   double
 	 */
-	public final double getKontostand() {
-		return kontostand;
+	public double getKontostand() {
+		return kontostand.getValue();
 	}
 
 	/**
 	 * liefert die Kontonummer zurück
 	 * @return   long
 	 */
-	public final long getKontonummer() {
+	public long getKontonummer() {
 		return nummer;
 	}
 
@@ -154,8 +249,8 @@ public abstract class Konto implements Comparable<Konto>
 	 * liefert zurück, ob das Konto gesperrt ist oder nicht
 	 * @return true, wenn das Konto gesperrt ist
 	 */
-	public final boolean isGesperrt() {
-		return gesperrt;
+	public boolean isGesperrt() {
+		return gesperrt.getValue();
 	}
 	
 	/**
@@ -207,6 +302,7 @@ public abstract class Konto implements Comparable<Konto>
 
 	/**
 	 * Mit dieser Methode wird der geforderte Betrag vom Konto abgehoben, wenn es nicht gesperrt ist.
+	 * Diese Methode, da final ist, kann nicht weiter veraendert. Daher -> Kann nicht gemockt werden.
 	 *
 	 * @param betrag double
 	 * @throws GesperrtException wenn das Konto gesperrt ist
@@ -214,8 +310,40 @@ public abstract class Konto implements Comparable<Konto>
 	 * @return true, wenn die Abhebung geklappt hat, 
 	 * 		   false, wenn sie abgelehnt wurde
 	 */
-	public abstract boolean abheben(double betrag) 
-								throws GesperrtException;
+	public final boolean abheben(double betrag)
+								throws GesperrtException {
+		//  Test, ob das Konto gesperrt ist
+		if (isGesperrt()) {
+			throw new GesperrtException(nummer);
+		}
+		//  Test, ob der übergebene Betrag positiv ist
+		if (betrag < 0 || Double.isNaN(betrag)) {
+			throw new IllegalArgumentException("Betrag ungültig");
+		}
+
+		boolean abhebungErlaubt = istAbhebungErlaubt(betrag);
+
+		//  Das eigentliche Vermindern des Kontostandes
+		if (abhebungErlaubt) {
+			setKontostand(getKontostand() - betrag);
+			sideEffect(betrag);
+		}
+
+		return abhebungErlaubt;
+	}
+
+	/**
+	 * Prueft ob die Abhebung des Kontostandes ueberhaupt erlaubt.
+	 * @param betrag der abzuhebender Betrag. Double.
+	 * @return true, wenn das Verminder des Kontostandes geklappt hat.
+	 */
+	protected abstract boolean istAbhebungErlaubt(double betrag);
+
+	/**
+	 * Was Uebriges, das noch bei der Abhebung des Kontostands geschehen sollte.
+	 * @param betrag abzuhebender Betrag
+	 */
+	protected abstract void sideEffect(double betrag);
 	
 	/**
 	 * Hebt den gewünschten in der Währung w angegebenen Betrag ab.
@@ -234,15 +362,17 @@ public abstract class Konto implements Comparable<Konto>
 	/**
 	 * sperrt das Konto, Aktionen zum Schaden des Benutzers sind nicht mehr möglich.
 	 */
-	public final void sperren() {
-		this.gesperrt = true;
+	public void sperren() {
+		prop.firePropertyChange("isGesperrt", gesperrt, true);
+		gesperrt.set(true);
 	}
 
 	/**
 	 * entsperrt das Konto, alle Kontoaktionen sind wieder möglich.
 	 */
 	public final void entsperren() {
-		this.gesperrt = false;
+		prop.firePropertyChange("isGesperrt", gesperrt, false);
+		gesperrt.set(false);
 	}
 	
 	
@@ -252,7 +382,7 @@ public abstract class Konto implements Comparable<Konto>
 	 */
 	public final String getGesperrtText()
 	{
-		if (this.gesperrt)
+		if (isGesperrt())
 		{
 			return "GESPERRT";
 		}
@@ -324,5 +454,13 @@ public abstract class Konto implements Comparable<Konto>
 	public void ausgeben()
 	{
 		System.out.println(this.toString());
+	}
+
+	/**
+	 * Gibt zurueck, ob der Kontostand negativ ist
+	 * @return true, wenn der Kontostand negativ ist
+	 */
+	public boolean getIstKontostandNegativ() {
+		return istKontostandNegativ.getValue();
 	}
 }

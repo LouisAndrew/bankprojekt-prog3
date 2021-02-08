@@ -1,7 +1,11 @@
 package verarbeitung;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mock;
+import org.mockito.Mockito;
 
+import java.beans.PropertyChangeSupport;
 import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -22,6 +26,16 @@ public class GirokontoTest {
 
     Girokonto k = new Girokonto(ich, kontoNummer, dispo);
     Girokonto k2 = new Girokonto(andere, kontoNummer2, dispo2);
+
+    PropertyChangeSupport propMock = Mockito.mock(PropertyChangeSupport.class);
+
+    /**
+     * Hilfsmethode zur Einstellung der PropertyChangeSupport des Kontos.
+     */
+    public void setupPropChangeSupport() {
+        k.setProp(propMock);
+        k2.setProp(propMock);
+    }
 
     /**
      * Hilfsfunktion zur Einzahlung am Anfang eines Tests, sodass das Konto beim Testen Saldo hat.
@@ -79,18 +93,21 @@ public class GirokontoTest {
      */
     @Test
     public void abhebenTest() throws GesperrtException {
+        setupPropChangeSupport(); // PropertyChangeSupport ist in die Konten eingestellt
         anfangsEinzahlung(k); // anfangs 10Eur
 
         // heb 5 Eur ab
         boolean abgehoben;
         abgehoben = k.abheben(5.0); // 5Eur
 
+        Mockito.verify(propMock).firePropertyChange("Kontostand", 10.0, 5.0);
         assertTrue(abgehoben); // Erfolgreiches Abheben.
 
         abgehoben = k.abheben(20.0); // sollte nicht erfolgreich sein
 
         assertFalse(abgehoben);
         assertEquals(5.0, k.getKontostand());
+        // Mockito.verify(propMock, Mockito.atMost(1)).firePropertyChange(ArgumentMatchers.matches("Kontostand"), ArgumentMatchers.anyDouble(), ArgumentMatchers.anyDouble());
     }
 
     /**
@@ -125,6 +142,7 @@ public class GirokontoTest {
     public void abhebenGesperrtTest() {
         anfangsEinzahlung(k);
         k.sperren(); // Konto ist ab jetzt gesperrt
+        setupPropChangeSupport(); // PropertyChangeSupport ist in die Konten eingestellt
 
         try {
             k.abheben(10);
@@ -132,6 +150,8 @@ public class GirokontoTest {
         } catch (GesperrtException e) {
             assertTrue(true);
         }
+
+        Mockito.verifyNoInteractions(propMock);
     }
 
     /**
@@ -139,10 +159,12 @@ public class GirokontoTest {
      */
     @Test
     public void einzahlungTest() {
+        setupPropChangeSupport(); // PropertyChangeSupport ist in die Konten eingestellt
         double betrag = 10.5;
 
         k.einzahlen(betrag);
         assertEquals(k.getKontostand(), betrag);
+        Mockito.verify(propMock).firePropertyChange("Kontostand", 0.0, betrag);
     }
 
     /**
@@ -150,6 +172,9 @@ public class GirokontoTest {
      */
     @Test
     public void einzahlungFehlerTest() {
+
+        setupPropChangeSupport();
+
         try {
             double betrag = -10.5;
 
@@ -158,6 +183,8 @@ public class GirokontoTest {
         } catch (IllegalArgumentException e) {
             assertTrue(true); // Exception geworfen: Läuft die Methode ganz gut.
         }
+
+        Mockito.verifyNoInteractions(propMock);
     }
 
     /**
@@ -178,12 +205,14 @@ public class GirokontoTest {
     @Test
     public void waehrungWechselTest() {
         anfangsEinzahlung(k); // 10 Eur
+        setupPropChangeSupport();
         Waehrung w = Waehrung.BGN; // wird in die Währung gewechselt
 
         k.waehrungswechsel(w);
 
         assertEquals(k.getAktuelleWaehrung(), w);
         assertEquals(k.getKontostand(), w.euroInWaehrungUmrechnen(10));
+        Mockito.verify(propMock).firePropertyChange("Waehrung", Waehrung.EUR, w);
     }
 
     /**

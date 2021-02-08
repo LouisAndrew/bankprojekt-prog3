@@ -98,28 +98,21 @@ public class Girokonto extends Konto implements Ueberweisungsfaehig{
     }
     
     @Override
-    public String toString()
-    {
-    	String ausgabe = "-- GIROKONTO --" + System.lineSeparator() +
-    	super.toString()
-    	+ "Dispo: " + this.dispo + System.lineSeparator();
-    	return ausgabe;
-    }
+    public String toString() {
+		String ausgabe = "-- GIROKONTO --" + System.lineSeparator() +
+				super.toString()
+				+ "Dispo: " + this.dispo + System.lineSeparator();
+		return ausgabe;
+	}
 
 	@Override
-	public boolean abheben(double betrag) throws GesperrtException{
-		if (betrag < 0 || Double.isNaN(betrag)) {
-			throw new IllegalArgumentException("Betrag ungültig");
-		}
-		if(this.isGesperrt())
-			throw new GesperrtException(this.getKontonummer());
-		if (getKontostand() - betrag >= - dispo)
-		{
-			setKontostand(getKontostand() - betrag);
-			return true;
-		}
-		else
-			return false;
+	protected boolean istAbhebungErlaubt(double betrag) {
+		return getKontostand() - betrag >= - dispo;
+	}
+
+	@Override
+	protected void sideEffect(double betrag) {
+		// kein SideEffect.
 	}
 
 	/**

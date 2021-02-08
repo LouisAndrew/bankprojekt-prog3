@@ -1,9 +1,11 @@
 package verarbeitung;
 
+import java.io.Serializable;
+
 /**
  * Aufzählung aller im Bankprogramm verfügbaren Währungen
  */
-public enum Waehrung {
+public enum Waehrung implements Serializable {
     EUR(1), BGN(1.95583), LTL(3.4528), KM(1.95583);
 
     private final double umrechnungKurs;
